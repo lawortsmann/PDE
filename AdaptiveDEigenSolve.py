@@ -91,12 +91,12 @@ class FunctionSpace:
         return A.tocsc()
 
     def BC(self, A, left=0.0, right=0.0):
-        # Sets boundary conditions on operator A
+        # applies boundary conditions on operator A
         if left is not None:
-            A[0] *= 0.0
+            A[0]   *= 0.0
             A[0, 0] = left
         if right is not None:
-            A[-1] *= 0.0
+            A[-1]    *= 0.0
             A[-1, -1] = right
         A.eliminate_zeros()
         return A.tocsc()
@@ -151,8 +151,8 @@ def adaptiveSolver(L, l, u, sigma, ldeg=2, udeg=3, tol=1e-10, nx=50, max_steps=5
     # Normalize
     a = np.sqrt( UnivariateSpline(x, np.abs(vu)**2.0, s=0).integral(l, u) )
     vu /= a
-    vr = UnivariateSpline(x, np.real(vu), s=0)
-    vi = UnivariateSpline(x, np.imag(vu), s=0)
+    vr = UnivariateSpline(x, np.real(vu), s=0, ext=1)
+    vi = UnivariateSpline(x, np.imag(vu), s=0, ext=1)
     w = lu[0]
     return w, vr, vi
 
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     # Call the adaptive solver (l is nonzero to prevent divide by zero issue)
     w, vr, vi = adaptiveSolver(L, l=1e-25, u=1.0, sigma=100.0, verbose=True)
 
-    # Print the eigenvalue:
+    # Print the eigenvalue, should be exactly 99
     print 'Eigenvalue: ', round(w, 3)
 
     # Plot the eigenfunction:
