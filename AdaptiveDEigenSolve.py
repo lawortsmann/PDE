@@ -22,33 +22,6 @@ def getFiniteDifference(dx, n=1):
     return np.linalg.solve(A, a)
 
 
-def solver(L, **kwargs):
-    # eigenvalue solver
-    l, v = sparse.linalg.eigs(L, **kwargs)
-    l_sort = np.argsort(np.abs(l))
-    l, v = np.real_if_close(l[l_sort]), v[:, l_sort]
-    return l, v
-
-
-def fixPhase(v0, v1, tol=1e-12):
-    # for two solutions (on same gridpoints), ensure both have the same phase
-    phase = lambda k: np.sum(np.abs(v0 - np.exp(1j * k) * v1))
-    k = minimize_scalar(phase, bounds=[0.0, 2.0 * np.pi], tol=tol).x
-    return np.real_if_close(np.exp(1j * k)) * v1
-
-
-def refine(x, err, tol=1e-10):
-    # refine the mesh based on error estimates
-    err_p = (err[1:] + err[:-1]) / 2
-    x_p, nx = [], len(x)
-    for i, xi in enumerate(x):
-        x_p.append(xi)
-        if (i + 1 < nx) and (err_p[i] >= tol):
-            mid = ((x[i + 1] - xi) / 2)
-            x_p.append(xi + mid)
-    return np.array(x_p)
-
-
 class FunctionSpace:
 
     def __init__(self, x, deg=2):
@@ -102,6 +75,25 @@ class FunctionSpace:
         return A.tocsc()
 
 
+def fixPhase(v0, v1, tol=1e-12):
+    # for two solutions (on same gridpoints), ensure both have the same phase
+    phase = lambda k: np.sum(np.abs(v0 - np.exp(1j * k) * v1))
+    k = minimize_scalar(phase, bounds=[0.0, 2.0 * np.pi], tol=tol).x
+    return np.real_if_close(np.exp(1j * k)) * v1
+
+
+def refine(x, err, tol=1e-10):
+    # refine the mesh based on error estimates
+    err_p = (err[1:] + err[:-1]) / 2
+    x_p, nx = [], len(x)
+    for i, xi in enumerate(x):
+        x_p.append(xi)
+        if (i + 1 < nx) and (err_p[i] >= tol):
+            mid = ((x[i + 1] - xi) / 2)
+            x_p.append(xi + mid)
+    return np.array(x_p)
+
+
 def adaptiveSolver(L, l, u, sigma, ldeg=2, udeg=3, tol=1e-10, nx=50, max_steps=50, verbose=True):
     """
     Find the eigenvalue/eigenfunction of the differential operator L on the
@@ -112,6 +104,7 @@ def adaptiveSolver(L, l, u, sigma, ldeg=2, udeg=3, tol=1e-10, nx=50, max_steps=5
         l:      Lower edge of domain
         u:      Upper edge of domain
         sigma:  Find eigenvalue near sigma
+
     Parameters:
         ldeg:   Degree of lower function space (for adaptive error)
         udeg:   Degree of upper function space (for adaptive error)
@@ -133,14 +126,14 @@ def adaptiveSolver(L, l, u, sigma, ldeg=2, udeg=3, tol=1e-10, nx=50, max_steps=5
         phi_u  = FunctionSpace(x, deg=udeg)
         phi_l  = FunctionSpace(x, deg=ldeg)
         Lu, Ll = L(phi_u), L(phi_l)
-        ll, vl = solver(Ll, sigma=sigma, k=1)
-        lu, vu = solver(Lu, sigma=sigma, k=1)
+        wl, vl = sparse.linalg.eigs(Ll, sigma=sigma, k=1)
+        wu, vu = sparse.linalg.eigs(Lu, sigma=sigma, k=1)
         vl, vu = vl[:, 0], vu[:, 0]
         vu     = fixPhase(vl, vu)
         err    = np.abs(vl - vu)
         if verbose:
-            print 'Iteration %s:\t%f\t%f'%(n, lu[0], ll[0])
-            print 'Mean Error: \t%f'%np.log10(np.mean(err))
+            print 'Iteration %s:\t%f\t%f'%(n, np.abs(wl[0]), np.abs(wu[0]))
+            print 'Mean Error: \t%f'%np.log10( np.mean(err) )
             print
         x_p = refine(x, err, tol=tol)
         if len(x_p) == nx:
@@ -153,12 +146,12 @@ def adaptiveSolver(L, l, u, sigma, ldeg=2, udeg=3, tol=1e-10, nx=50, max_steps=5
     vu /= a
     vr = UnivariateSpline(x, np.real(vu), s=0, ext=1)
     vi = UnivariateSpline(x, np.imag(vu), s=0, ext=1)
-    w = lu[0]
-    return w, vr, vi
+    return wu[0], vr, vi
 
 
 if __name__ == '__main__':
     # Define an operator, should operate on a function space:
+
     def L(phi):
         # phi is a FunctionSpace
         # Calls to phi.D(), phi.F(), ect... return sparse matricies
@@ -169,10 +162,10 @@ if __name__ == '__main__':
         return phi.BC(Lop, right=None)
 
     # Call the adaptive solver (l is nonzero to prevent divide by zero issue)
-    w, vr, vi = adaptiveSolver(L, l=1e-25, u=1.0, sigma=100.0, verbose=True)
+    w, vr, vi = adaptiveSolver(L, l=1e-25, u=1.0, sigma=100.0, verbose=True, tol=1e-6)
 
     # Print the eigenvalue, should be exactly 99
-    print 'Eigenvalue: ', round(w, 3)
+    print 'Eigenvalue: ', round(np.real_if_close(w), 3)
 
     # Plot the eigenfunction:
     import matplotlib.pyplot as plt
