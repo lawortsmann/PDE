@@ -18,7 +18,7 @@ def getFiniteDifference(dx, n=1):
     # Find nth order finite difference coefficents for gridpoints dx
     a = np.zeros(len(dx))
     a[n] = np.math.factorial(n)
-    A = np.array([np.power(dx, i) for i in range(len(dx))])
+    A = np.array([ np.power(dx, i) for i in range(len(dx)) ])
     return np.linalg.solve(A, a)
 
 
@@ -35,18 +35,24 @@ class FunctionSpace:
         if n == 0:
             return self.I()
         data, iA, jA = np.zeros((3, self.nV, self.pdeg))
+
         for i in range(self.nV):
+
             if i - self.deg < 0:
-                sten = self.x[:self.pdeg]
+                sten  = self.x[:self.pdeg]
                 jA[i] = np.arange(self.pdeg)
+
             elif i + self.deg + 1 > self.nV:
                 sten  = self.x[-self.pdeg:]
                 jA[i] = np.arange(self.nV - self.pdeg, self.nV)
+
             else:
-                sten = self.x[i - self.deg: i + self.deg + 1]
+                sten  = self.x[i - self.deg: i + self.deg + 1]
                 jA[i] = np.arange(i - self.deg, i + self.deg + 1)
+
             data[i] = getFiniteDifference(sten - self.x[i], n=n)
-            iA[i] = i
+            iA[i]   = i
+
         data, iA, jA = data.flatten(), iA.flatten(), jA.flatten()
         A = sparse.coo_matrix((data, (iA, jA)), shape=(self.nV, self.nV))
         return A.tocsc()
@@ -59,8 +65,8 @@ class FunctionSpace:
     def F(self, f):
         # Projects function f onto the function space
         f_eval = np.vectorize(f)
-        dia = f_eval(self.x)
-        A = sparse.dia_matrix(([dia], [0]), shape=(self.nV, self.nV))
+        dia    = f_eval(self.x)
+        A      = sparse.dia_matrix(([dia], [0]), shape=(self.nV, self.nV))
         return A.tocsc()
 
     def BC(self, A, left=0.0, right=0.0):
